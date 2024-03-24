@@ -1,0 +1,4 @@
+build/
+dist/
+cache.json
+go2web.spec

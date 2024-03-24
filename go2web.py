@@ -1,67 +1,40 @@
-import socket
-from urllib.parse import urlparse
-import bs4
-import os
 import sys
+import warnings
+from urllib.parse import quote
+from functionality import http_get, get_response_to_leformat, search_response_to_leformat
 
-def extract_url_data(url):
-    parsed_url = urlparse(url)
-    
-    return parsed_url.netloc, 80, parsed_url.path
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
 
-def http_get_req(url):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    host, port, path = extract_url_data(url)
-
-    print(host, port, path)
-
-    try:
-        client_socket.connect((host, port))
-
-        request = f"GET {url} HTTP/1.1\r\nHost: {host}\r\n\r\n"
-        client_socket.send(request.encode())
-
-        response = b""
-        while True:
-            data = client_socket.recv(1024)
-            if not data:
-                break
-
-            response += data
-
-            headers = response.split(b"\r\n\r\n")[0].decode().splitlines()
-            for header in headers:
-                if header.startswith("Content-Length"):
-                    content_length = int(header.split(": ")[1])
-                    break
-
-            if content_length is not None and len(response) >= content_length:
-                break
-
-        return response.decode()
-    
-    finally:
-        client_socket.close()
-
-while (True):
-    command = input(">>> ")
-
-    if command[:9] == "go2web -h":
+def main():
+    if len(sys.argv) == 1 or sys.argv[1] == '-h':
         print("go2web -u <URL>          # make an HTTP request to the specified URL and print the response")
         print("go2web -s <search-term>  # make an HTTP request to search the term using your favorite search engine and print top 10 results")
         print("go2web -h                # show this help")
-        print("go2web -c                # clear the terminal")
-        print("go2web -e                # exit this CLI\n")
-    elif command[:9] == "go2web -u":
-        response = http_get_req(command[10:])
-        print(bs4.BeautifulSoup(response).text + "\n")
-    elif command[:9] == "go2web -c":
-        os.system("clear")
-    elif command[:9] == "go2web -e":
-        sys.exit()
+        
+        return
+
+    if sys.argv[1] == '-u':
+        if len(sys.argv) != 3:
+            print("Error: Missing URL argument")
+            
+            return
+        
+        url = sys.argv[2]
+        print(get_response_to_leformat(http_get(url)), '\n')
+
+    elif sys.argv[1] == '-s':
+        if len(sys.argv) < 3:
+            print("Error: Missing search words")
+            return
+        
+        line = ' '.join(sys.argv[2:])
+        print(search_response_to_leformat(http_get("https://www.google.com/search?q=" + quote(line))), '\n')
+
     else:
-        print("Invalid syntax!\n")
+        print("Invalid option. Use '-h' for help.")
 
-
-# ex_url = "http://www.columbia.edu/~fdc/sample.html"
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,24 @@
 import socket, ssl, json
 from urllib.parse import urlparse
 import bs4
+import hashlib
+from tinydb import Query, TinyDB
+
+cache_file = "cache.json"
+db = TinyDB(cache_file)
+
+def hash_url(url):
+    return hashlib.md5(url.encode()).hexdigest()
+
+def cache_resp(url, resp_data):
+    db.insert({'url': hash_url(url), 'resp_data': resp_data})
+
+def check_cache(url):
+    return db.contains(Query().url == hash_url(url))
+
+def retrieve_cache(url):
+    result = db.get(Query().url == hash_url(url))
+    return result['resp_data'] if result else None
 
 def get_response_to_leformat(response):
     if 'text/html' in response:
@@ -53,10 +71,14 @@ def extract_url_data(url):
     return parsed_url.netloc, port, parsed_url.path
 
 def http_get(url):
+    if check_cache(url):
+        print("Retrieving cached response: ", hash_url(url), '\n')
+        return retrieve_cache(url)
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     host, port, path = extract_url_data(url)
-    print(host, port, path, '\n')
+    print("Establishing websocket connection:", host, port, path, '\n')
 
     if port == 443:
         client_socket = ssl.wrap_socket(client_socket)
@@ -80,7 +102,10 @@ def http_get(url):
             except socket.timeout:
                 break
 
-        return response.decode('utf-8', errors='ignore')
+        resp_data = response.decode('utf-8', errors='ignore')
+        cache_resp(url, resp_data)
+
+        return resp_data
     
     finally:
         client_socket.close()
